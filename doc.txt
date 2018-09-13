@@ -1,0 +1,115 @@
+本例为一个使用 Spring Boot 搭建的 web 工程简单框架，合入的组建有：
+
+Spring Boot
+Spring Cloud    按需求可选
+Jpa
+MySQL
+Redis
+Lombok
+Swagger2
+
+基本满足了简单 web 工程的开发需求，需要其他组件可在此基础上添加或更换
+
+
+#####  项目分层  #####
+
+主要分为如下几层：
+
+entity：			持久化层，表结构
+repository：		dao层，负责数据交互相关操作
+service：		事务层，负责业务逻辑实现
+controller：		接口转发层，开放接口供外界调用
+dto：			数据传输对象，接口返回数据或传输数据的数据结构
+param：			参数对象，接口传入参数的数据结构
+
+每层的命名并不固定，比如repository也可以叫做dao，或者mapper，只是本例使用了jpa而不是mybatis，所以repository更贴合一些，只要将层次分清
+知道每层意义即可。
+
+
+#####  Spring Cloud  #####
+
+在 pom.xml 文件中，已经添加了基本的 Spring Cloud 相关依赖
+在 application.yml 配置文件添加了 Spring Cloud 组件需要的相关配置
+在 DemoServiceApplication 类中添加了 Spring Cloud 组件需要开启的相关注解
+
+Spring Cloud 相关内容默认处于注释掉的状态，以 Spring Boot 独立项目为主，如果需要做成微服务，可根据需求开启 Spring Cloud 相关内容，进行
+改造。
+
+关于 Spring Cloud Feign，可以实现同注册在 Spring Cloud 注册中心中项目件互相调用，在本例项目路径下的 feign 文件夹中，有创建一个例子，
+并且实现了 Hystrix 断路器，例子中服务提供者是虚拟的不存在的，仅演示服务消费者端消费服务的方法。
+
+添加 @FeignClient 注解，value 属性指明服务提供者的项目名，fallback 属性指明断路器实现类，使用 controller 注解 @RequestMapping 创建
+要消费的服务接口，value 属性要指明要消费的接口在服务提供者中的接口路径。断路器实现类实现 FeignClient 类，并实现消费的方法，返回定制的错误
+信息。
+
+#####  Jpa  #####
+
+有多种实现方法，主要参考 DemoStudentRepository, DemoService, 和 DemoServiceImpl
+
+1. Jpa实现，Repository 中因为继承了 JpaRepository，所以如增删改查等基本查询已经实现，可以直接使用，详情可以查看 JpaRepository 代码，
+和它所继承的类的代码。
+对于不是基础数据库操作，比如根据某属性查找，或者判断属性是否为空，大于小于等操作，需要自己创建方法。
+Jpa 支持自己的语法命名方法，会自动实现，不需要开发人员写任何实现代码，如 DemoStudentRepository 中的 getByName，就符合了 Jpa 语法，
+其实不需要死记，在创建时会有代码补全提示，可以参考。
+比如，想创建一个根据 age 获取 student 的方法，创建时，首先输入 get 或 find，jpa 工具会直接跳出可选的代码一步一步选择，最后得到 getByAge，
+最后有几个参数，就加几个参数在方法签名中。
+
+2. 对于 jpa 不熟悉，或者逻辑较复杂不方便或者拿不准用 jpa 语法怎么实现，可以使用 sql 语句来实现数据库操作。只需要使用 @Query 注解即可用
+DemoStudentRepository 中的 getByNameSql，这时方法的命名没有规则，可以随意取，为了方便对比，这里使用了相对应的 jpa 方法的名称加上 sql
+来命名。可以使用 hql 查询，使用 @Param 传入参数；也可以使用原生 sql 查询，需要添加 nativeQuery = true，注意：使用原生查询时要用 表名 查
+
+3. jpa 提供 JpaSpecificationExecutor 专门用来查询，可以使用做复杂查询，Specification 是Spring Data JPA提供的一个查询规范，要做复杂的
+查询，只需围绕这个规范来设置查询条件即可，实际是使用 Criteria 查询，是一种类型安全和更面向对象的查询
+
+4. Example 实体查询，将条件set给实体，实现给予条件的精确匹配查询
+
+建议能用 jpa 基本实现方法查询的优先选择使用方法名实现查询，如果条件较多建议使用 Specification 查询，如果实在想写 sql 再用 sql 实现，Example
+不够灵活，不建议优先选择
+
+
+#####  Redis  #####
+
+项目路径 config 文件夹下，已经添加了对 redis 配置。
+使用时，先在类中注入：
+    @Autowired
+    private RedisTemplate redisTemplate;
+或者
+    @Autowired
+    private StringRedisTemplate stringRedisTemplate;
+后者针对 String 类型操作
+
+例：
+基本 key-value：
+stringRedisTemplate.opsForValue().set(key, value);
+String value = stringRedisTemplate.opsForValue().get(key);
+
+Hash：
+stringRedisTemplate.opsForHash().put("user_token", uid, token);
+String token = (String) stringRedisTemplate.opsForHash().get("user_token", uid);
+
+还有针对于方法的注解式用法，如 @Cacheable，@CachePut，@CacheEvict 等，可以自己了解下。
+
+
+#####  lombok  #####
+
+通过注解使代码变得简洁，需要 idea 插件支持，pom.xml 添加依赖，idea 下载 lombok 插件。
+
+介绍两个基本用法：
+1. @Data
+对 pojo 添加 @Data 注解，提供 getter、setter、equals、canEqual、hashCode、toString 等方法，不再需要手动创建。
+
+2. @Slf4j
+类添加 @Slf4j 注解后，可直接使用 log. 来使用日志打印功能，不需要对每个类声明一个 logger。
+当然日志相关还有 @CommonsLog, @Log4j, @Log4j2, @JBossLog 等，可根据项目日志体系选择。
+
+还有其他注解，帮助简化代码，可以自己了解一下。
+
+
+#####  Swagger2  #####
+
+一个很流行的文档工具，通过添加注解，在项目启动时可以生成一个文档页面，支持直接在页面上测试接口，可以在开发阶段很方便的提供给前端测试
+
+用法：
+pom.xml 中添加对应依赖，config 文件夹下添加 SwaggerConfig，设置一些基本信息，接口添加 Swagger 注解，可查看 DemoController 中例子，
+启动项目，访问 http://ip:port/swagger-ui.html，即可看到文档页面，可点击查看详情，并使用 Try it out 功能，填写需要参数，点击 Execute
+测试对应接口.
